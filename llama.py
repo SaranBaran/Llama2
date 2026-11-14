@@ -50,7 +50,7 @@ class RMSNorm(torch.nn.Module):
             torch.Tensor: The normalized tensor.
         """
         # todo
-        raise NotImplementedError
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
 
     def forward(self, x):
         """
@@ -103,7 +103,13 @@ class Attention(nn.Module):
         not use one).
         '''
         # todo
-        raise NotImplementedError
+        batch_size, head, length, d_tensor = key.size()
+        k_t = key.transpose(2, 3)
+        score = (query @ k_t) / math.sqrt(d_tensor)
+        score = torch.softmax(score, dim=-1)
+        score = self.attn_dropout(score)
+        value = score @ value
+        return value
 
     def forward(
         self,
@@ -206,7 +212,12 @@ class LlamaLayer(nn.Module):
            output of the feed-forward network
         '''
         # todo
-        raise NotImplementedError
+        n_input = self.attention_norm(x)
+        a_input = self.attention(n_input)
+        res_con = a_input + x
+        n_res = self.ffn_norm(res_con)
+        ff_n = self.feed_forward(n_res)
+        return ff_n + res_con
 
 class Llama(LlamaPreTrainedModel):
     def __init__(self, config: LlamaConfig):
@@ -267,9 +278,18 @@ class Llama(LlamaPreTrainedModel):
             h: the final hidden state at each token in the given document.
         '''
         _batch_size, seqlen = tokens.shape
-            
+        h = self.tok_embeddings(tokens)
+        h = self.dropout(h)
+        for layer in self.layers:
+            h = layer(h)
+        h = self.norm(h) 
+        logits = None   
+        if targets:
+            logits = self.output(h).float()
+        else:
+            logits = self.output(h[:, [-1], :]).float()
         # todo
-        raise NotImplementedError
+        return (logits, h)
 
     @torch.inference_mode()
     def generate(self, idx, max_new_tokens, temperature=1.0):
@@ -303,7 +323,9 @@ class Llama(LlamaPreTrainedModel):
                 Note that we are not using top-k sampling/nucleus sampling in this procedure.
                 '''
                 # todo
-                raise NotImplementedError
+                sliced = logits / temperature
+                probs = torch.softmax(sliced, dim=-1)
+                idx_next = torch.multinomial(probs, num_samples=1)
             # append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
 
