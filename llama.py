@@ -284,10 +284,10 @@ class Llama(LlamaPreTrainedModel):
             h = layer(h)
         h = self.norm(h) 
         logits = None   
-        if targets:
-            logits = self.output(h).float()
+        if targets is not None:
+            logits = self.output(h)
         else:
-            logits = self.output(h[:, [-1], :]).float()
+            logits = self.output(h[:, [-1], :])
         # todo
         return (logits, h)
 
